@@ -46,7 +46,8 @@
                                   th:text="${authorTag}"></span>
                         </div>
                     </div>
-                    <div class="author-title" th:text="${singlePage.spec.title}"></div>
+                    <!-- 将${singlePage.spec.title}修改为${site.title}，头像框下方将显示站点名称而不是页面名称 -->
+                    <div class="author-title" th:text="${site.title}"></div>
                     
                     <th:block
                             th:replace="~{modules/about-widgets :: about-widgets(${theme.config.about.widget_list})}"></th:block>
