@@ -14,7 +14,8 @@
         <header class="not-top-img" id="page-header">
             <nav th:replace="~{modules/nav :: nav(title = ${'分类' + ': ' + category.spec.displayName})}"></nav>
         </header>
-        <main class="layout" id="content-inner">
+        <!-- 修复分类页面的侧边栏无法左置的问题 -->
+        <main class="layout" id="content-inner" th:classappend="${theme.config.sidebar.location}">
             <div id="category">
                 <div id="category-bar">
                     <div class="category-bar-items" id="category-bar-items">
