@@ -14,7 +14,8 @@
         <header class="not-top-img" id="page-header">
             <nav th:replace="~{modules/nav :: nav(title = '文章归档')}"></nav>
         </header>
-        <main class="layout" id="content-inner">
+        <!-- 修复文章归档页面左置侧边栏问题 -->
+        <main class="layout" id="content-inner" th:classappend="${theme.config.sidebar.location}">
             <!-- archive -->
             <div id="archive">
                 <div class="article-sort-title">文章<sup>[[${siteStatsFinder.getStats().post}]]</sup></div>
