@@ -1416,6 +1416,7 @@ spec:
               default_enable: true
               dingyue: true
               zhuti: true
+              xiaoyouxi: false
               about: true
               icp_icon: true
               gongwangan: true
@@ -1473,6 +1474,17 @@ spec:
                   id: zhuti
                   key: zhuti
                   label: 主题
+                  options:
+                    - label: 显示
+                      value: true
+                    - label: 隐藏
+                      value: false
+                - $formkit: radio
+                  if: $get(default_enable).value
+                  name: xiaoyouxi
+                  id: xiaoyouxi
+                  key: xiaoyouxi
+                  label: 小游戏
                   options:
                     - label: 显示
                       value: true
