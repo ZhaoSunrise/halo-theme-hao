@@ -19,9 +19,7 @@
             <div id="category">
                 <div id="category-bar">
                     <div class="category-bar-items" id="category-bar-items">
-                        <div class="category-bar-item" id="category-bar-home">
-                            <a href="/">首页</a>
-                        </div>
+
                         <div class="category-bar-item"
                              th:classappend="${category.metadata.name == categoryItem.metadata.name} ? ' select'"
                              th:each="categoryItem : ${categoryFinder.listAll()}"
@@ -29,6 +27,10 @@
                             <a th:href="@{${categoryItem.status.permalink}}"
                                th:text="${categoryItem.spec.displayName}"></a>
                         </div>
+                        <!-- 修改“首页”字样为“全部文章”并调整顺序至最后，让分类导航条更符合使用习惯 -->
+                        <div class="category-bar-item" id="category-bar-home">
+                            <a href="/">全部文章</a>
+                        </div>                          
                     </div>
                     <!-- 跳转到分类页 -->
                     <a class="category-bar-more" href="/categories">更多</a>
