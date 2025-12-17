@@ -39,7 +39,7 @@
 }
 
 [data-theme=light] {
-    --heo-theme: #425AEF;
+    --heo-theme: #0097a7;
     --heo-theme-op: #4259ef23;
     --heo-theme-op-deep: #4259efdd;
     --heo-theme-op-light: #4259ef0d;
@@ -52,7 +52,7 @@
     --heo-yellow-op: #d99c001a;
     --heo-orange: #e38100;
     --heo-fontcolor: #363636;
-    --heo-background: #f7f9fe;
+    --heo-background: #f5f5f5;
     --heo-reverse: #000;
     --heo-maskbg: rgba(255, 255, 255, 0.6);
     --heo-maskbgdeep: rgba(255, 255, 255, 0.85);
@@ -77,7 +77,7 @@
 }
 
 [data-theme=dark] {
-    --heo-theme: #ffc848;
+    --heo-theme: #009688;
     --heo-theme-op: #f2b94b23;
     --heo-theme-op-deep: #f2b94bdd;
     --heo-theme-none: #f2b94b00;
@@ -89,7 +89,7 @@
     --heo-yellow-op: #ffc93e30;
     --heo-orange: #ff953e;
     --heo-fontcolor: #F7F7FA;
-    --heo-background: #18171d;
+    --heo-background: #303030;
     --heo-reverse: #fff;
     --heo-maskbg: rgba(0, 0, 0, 0.6);
     --heo-maskbgdeep: rgba(0, 0, 0, 0.85);
