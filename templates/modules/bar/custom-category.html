@@ -2,7 +2,8 @@
 <div id="category-bar">
     <div class="category-bar-items" id="category-bar-items">
         <div class="category-bar-item select" id="category-bar-home">
-            <a href="/">首页</a>
+            <!-- 调整“首页”字样为“全部文章”，配合使用习惯 -->
+            <a href="/">全部文章</a>
         </div>
 
         <th:block th:each="navCategory : ${theme.config.layout.navs.navCategory}">
