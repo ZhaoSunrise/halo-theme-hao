@@ -2,7 +2,7 @@ name: Build and Release Theme
 
 on:
   release:
-    types: [created]  # 当发布 Release 时触发
+    types: [created]  # 发布 Release 时触发
 
 jobs:
   build-and-upload:
@@ -23,13 +23,32 @@ jobs:
         run: |
           npm install -g terser clean-css-cli
 
-      - name: Minify JS and CSS (if exists)
+      - name: Minify JS and CSS in specific directories
         run: |
-          # 递归最小化 assets/js 目录下所有 .js 文件（原地覆盖）
-          find assets/js -name "*.js" -type f -exec terser {} --compress --mangle -o {} \; 2>/dev/null || echo "No JS files or already minified"
-          # 递归最小化 assets/css 目录下所有 .css 文件（原地覆盖）
-          find assets/css -name "*.css" -type f -exec cleancss -o {} {} \; 2>/dev/null || echo "No CSS files or already minified"
-          echo "Minify completed"
+          # 定义需要处理的目录（只针对你指定的路径）
+          DIRECTORIES=(
+            "templates/assets/css"
+            "templates/assets/js"
+            "templates/assets/libs"
+            "templates/assets/zhheo"
+          )
+
+          for dir in "${DIRECTORIES[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "Processing directory: $dir"
+
+              # 最小化该目录及其子目录下所有 .js 文件（原地覆盖）
+              find "$dir" -type f -name "*.js" -exec terser {} --compress --mangle -o {} \; 2>/dev/null || echo "No JS files in $dir"
+
+              # 最小化该目录及其子目录下所有 .css 文件（原地覆盖）
+              find "$dir" -type f -name "*.css" -exec cleancss -o {} {} \; 2>/dev/null || echo "No CSS files in $dir"
+
+              echo "Minify completed for $dir"
+            else
+              echo "Directory not found (skipped): $dir"
+            fi
+          done
+          echo "All specified directories processed."
 
       - name: Get version from package.json
         id: get_version
@@ -51,11 +70,11 @@ jobs:
           mkdir -p "$PRE_ZIP_FOLDER"
           mkdir -p dist
           
-          # 复制你原来的文件和目录（可根据实际需要增删）
-          cp -r theme.yaml settings.yaml annotation-setting.yaml templates assets "$PRE_ZIP_FOLDER"/ 2>/dev/null || echo "Some files/directories missing, skipped"
+          # 复制根目录文件和目录到临时文件夹（保持你原来的结构）
+          cp -r theme.yaml settings.yaml annotation-setting.yaml templates "$PRE_ZIP_FOLDER"/ 2>/dev/null || echo "Some root files missing"
           
-          # 如果有其他文件（如 module.yaml、screenshot.png 等），可以继续添加：
-          # cp module.yaml screenshot.png "$PRE_ZIP_FOLDER"/ 2>/dev/null || true
+          # 如果还有其他根目录文件（如 module.yaml、screenshot.png、LICENSE 等），可继续添加：
+          # cp module.yaml screenshot.png LICENSE "$PRE_ZIP_FOLDER"/ 2>/dev/null || true
           
           zip -r "$ARTIFACT_PATH" "$PRE_ZIP_FOLDER"
           
@@ -66,7 +85,7 @@ jobs:
         with:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: dist/*.zip
-          # overwrite: true  # 如需覆盖同名文件，可取消注释
+          # overwrite: true  # 如果需要覆盖同名资产，可取消注释
 
       - name: Upload artifact (for debug)
         uses: actions/upload-artifact@v4
