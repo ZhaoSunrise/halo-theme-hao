@@ -14,45 +14,109 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Compress zip
+      - name: Install minification tools
+        run: |
+          npm install -g terser csso-cli
+      - name: Prepare version info
         run: |
           PACKAGE_VERSION=$(sed -nE 's/^\s*"version": "(.*?)",$/\1/p' package.json)
+          echo "halo-theme-hao version $PACKAGE_VERSION"
+          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
+          echo "RELEASE_ID=${{ github.event.release.id }}" >> $GITHUB_ENV
+      - name: Build original package
+        run: |
           PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
           ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
           ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
-          echo "halo-theme-hao version $PACKAGE_VERSION"
-          echo "Artifact name: ${ARTIFACT_NAME}"
-          echo "Artifact pathname: ${ARTIFACT_PATHNAME}"
-          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
-          echo "ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
-          echo "RELEASE_ID=${{ github.event.release.id }}" >> $GITHUB_ENV
-          mkdir $PRE_ZIP_FOLDER
-          mkdir dist
+          echo "Building original package: ${ARTIFACT_NAME}"
+          echo "ORIGINAL_ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
+          echo "ORIGINAL_ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
+          mkdir -p $PRE_ZIP_FOLDER
+          mkdir -p dist
           cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
           zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
-      - name: Upload artifact
+          rm -rf $PRE_ZIP_FOLDER
+      - name: Build minified package
+        run: |
+          PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}-min
+          ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
+          ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
+          echo "Building minified package: ${ARTIFACT_NAME}"
+          echo "MINIFIED_ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
+          echo "MINIFIED_ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
+          mkdir -p $PRE_ZIP_FOLDER
+          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
+          
+          # Minify all JS files in templates/assets/ and subdirectories
+          find $PRE_ZIP_FOLDER/templates/assets -type f -name "*.js" ! -name "*.min.js" | while read file; do
+            echo "Minifying JS: $file"
+            terser "$file" -c -m -o "$file"
+          done
+          
+          # Minify all CSS files in templates/assets/ and subdirectories
+          find $PRE_ZIP_FOLDER/templates/assets -type f -name "*.css" ! -name "*.min.css" | while read file; do
+            echo "Minifying CSS: $file"
+            csso "$file" -o "$file"
+          done
+          
+          zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
+          rm -rf $PRE_ZIP_FOLDER
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: halo-theme-hao
           path: |
             dist/*.zip
           retention-days: 7
-      - name: Upload a release asset
-        uses: actions/github-script@v8
+      - name: Upload original release asset
+        uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const fs = require('fs').promises;
-            const { repo: { owner, repo }, sha } = context;
-            console.log({ owner, repo, sha });
+            const fs = require('fs');
+            const { repo: { owner, repo } } = context;
+            console.log({ owner, repo });
             const releaseId = process.env.RELEASE_ID
-            const artifactPathName = process.env.ARTIFACT_PATHNAME
-            const artifactName = process.env.ARTIFACT_NAME
-            console.log('Releasing', releaseId, artifactPathName, artifactName)
-            await github.repos.uploadReleaseAsset({
-              owner, repo,
-              release_id: releaseId,
-              name: artifactName,
-              data: await fs.readFile(artifactPathName)
+            const artifactPathName = process.env.ORIGINAL_ARTIFACT_PATHNAME
+            const artifactName = process.env.ORIGINAL_ARTIFACT_NAME
+            console.log('Releasing original version:', releaseId, artifactPathName, artifactName)
+            
+            const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${artifactName}`;
+            const stats = fs.statSync(artifactPathName);
+            const fileData = fs.readFileSync(artifactPathName);
+            
+            await github.request({
+              method: 'POST',
+              url: uploadUrl,
+              headers: {
+                'content-type': 'application/zip',
+                'content-length': stats.size
+              },
+              data: fileData
+            });
+      - name: Upload minified release asset
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const { repo: { owner, repo } } = context;
+            console.log({ owner, repo });
+            const releaseId = process.env.RELEASE_ID
+            const artifactPathName = process.env.MINIFIED_ARTIFACT_PATHNAME
+            const artifactName = process.env.MINIFIED_ARTIFACT_NAME
+            console.log('Releasing minified version:', releaseId, artifactPathName, artifactName)
+            
+            const uploadUrl = `https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${artifactName}`;
+            const stats = fs.statSync(artifactPathName);
+            const fileData = fs.readFileSync(artifactPathName);
+            
+            await github.request({
+              method: 'POST',
+              url: uploadUrl,
+              headers: {
+                'content-type': 'application/zip',
+                'content-length': stats.size
+              },
+              data: fileData
             });
