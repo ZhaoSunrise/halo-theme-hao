@@ -1,87 +1,76 @@
-name: Build distribution theme
+name: Build and Release Theme
 
 on:
   release:
-    types:
-      - created
+    types: [created]  # 当发布 Release 时触发
 
 jobs:
-  build:
+  build-and-upload:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16
-      - name: Compress zip
-        run: |
-          PACKAGE_VERSION=$(sed -nE 's/^\s*"version": "(.*?)",$/\1/p' package.json)
-          PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
-          ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
-          ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
-          echo "halo-theme-hao version $PACKAGE_VERSION"
-          echo "Artifact name: ${ARTIFACT_NAME}"
-          echo "Artifact pathname: ${ARTIFACT_PATHNAME}"
-          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
-          echo "ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
-          echo "RELEASE_ID=${{ github.event.release.id }}" >> $GITHUB_ENV
-          mkdir $PRE_ZIP_FOLDER
-          mkdir dist
-          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
-          zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: halo-theme-hao
-          path: |
-            dist/*.zip
-          retention-days: 7
+    permissions:
+      contents: write  # 上传 release asset 需要写权限
 
-  github-release:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
     steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: false
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 16
-      - name: Compress zip
+          node-version: 20
+
+      - name: Install minify tools
         run: |
-          PACKAGE_VERSION=$(sed -nE 's/^\s*"version": "(.*?)",$/\1/p' package.json)
+          npm install -g terser clean-css-cli
+
+      - name: Minify JS and CSS (if exists)
+        run: |
+          # 递归最小化 assets/js 目录下所有 .js 文件（原地覆盖）
+          find assets/js -name "*.js" -type f -exec terser {} --compress --mangle -o {} \; 2>/dev/null || echo "No JS files or already minified"
+          # 递归最小化 assets/css 目录下所有 .css 文件（原地覆盖）
+          find assets/css -name "*.css" -type f -exec cleancss -o {} {} \; 2>/dev/null || echo "No CSS files or already minified"
+          echo "Minify completed"
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          PACKAGE_VERSION=$(jq -r .version package.json)
+          echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "halo-theme-hao version $PACKAGE_VERSION"
+
+      - name: Compress zip (original folder structure)
+        run: |
+          PACKAGE_VERSION=${{ steps.get_version.outputs.version }}
           PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
           ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
-          ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
-          echo "halo-theme-hao version $PACKAGE_VERSION"
+          ARTIFACT_PATH=dist/${ARTIFACT_NAME}
+          
           echo "Artifact name: ${ARTIFACT_NAME}"
-          echo "Artifact pathname: ${ARTIFACT_PATHNAME}"
-          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
-          echo "ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
-          echo "RELEASE_ID=${{ github.event.release.id }}" >> $GITHUB_ENV
-          mkdir $PRE_ZIP_FOLDER
-          mkdir dist
-          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
-          zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
-      - name: Upload a release asset
-        uses: actions/github-script@v2
+          echo "Artifact path: ${ARTIFACT_PATH}"
+          
+          mkdir -p "$PRE_ZIP_FOLDER"
+          mkdir -p dist
+          
+          # 复制你原来的文件和目录（可根据实际需要增删）
+          cp -r theme.yaml settings.yaml annotation-setting.yaml templates assets "$PRE_ZIP_FOLDER"/ 2>/dev/null || echo "Some files/directories missing, skipped"
+          
+          # 如果有其他文件（如 module.yaml、screenshot.png 等），可以继续添加：
+          # cp module.yaml screenshot.png "$PRE_ZIP_FOLDER"/ 2>/dev/null || true
+          
+          zip -r "$ARTIFACT_PATH" "$PRE_ZIP_FOLDER"
+          
+          echo "ZIP created: $ARTIFACT_PATH"
+
+      - name: Upload ZIP to Release
+        uses: shogo82148/actions-upload-release-asset@v1
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const fs = require('fs').promises;
-            const { repo: { owner, repo }, sha } = context;
-            console.log({ owner, repo, sha });
-            const releaseId = process.env.RELEASE_ID
-            const artifactPathName = process.env.ARTIFACT_PATHNAME
-            const artifactName = process.env.ARTIFACT_NAME
-            console.log('Releasing', releaseId, artifactPathName, artifactName)
-            await github.repos.uploadReleaseAsset({
-              owner, repo,
-              release_id: releaseId,
-              name: artifactName,
-              data: await fs.readFile(artifactPathName)
-            });
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: dist/*.zip
+          # overwrite: true  # 如需覆盖同名文件，可取消注释
+
+      - name: Upload artifact (for debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: halo-theme-hao-zip
+          path: dist/*.zip
+          retention-days: 7
