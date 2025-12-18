@@ -86,34 +86,38 @@ jobs:
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const fs = require('fs').promises;
+            const fs = require('fs');
             const { repo: { owner, repo }, sha } = context;
             console.log({ owner, repo, sha });
             const releaseId = process.env.RELEASE_ID
             const artifactPathName = process.env.ARTIFACT_PATHNAME
             const artifactName = process.env.ARTIFACT_NAME
             console.log('Releasing unminified version:', releaseId, artifactPathName, artifactName)
-            await github.repos.uploadReleaseAsset({
-              owner, repo,
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
               release_id: releaseId,
               name: artifactName,
-              data: await fs.readFile(artifactPathName)
+              data: fs.readFileSync(artifactPathName)
             });
       - name: Upload minified release asset
         uses: actions/github-script@v7
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const fs = require('fs').promises;
+            const fs = require('fs');
             const { repo: { owner, repo }, sha } = context;
             console.log({ owner, repo, sha });
             const releaseId = process.env.RELEASE_ID
             const artifactPathNameMin = process.env.ARTIFACT_PATHNAME_MIN
             const artifactNameMin = process.env.ARTIFACT_NAME_MIN
             console.log('Releasing minified version:', releaseId, artifactPathNameMin, artifactNameMin)
-            await github.repos.uploadReleaseAsset({
-              owner, repo,
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
               release_id: releaseId,
               name: artifactNameMin,
-              data: await fs.readFile(artifactPathNameMin)
+              data: fs.readFileSync(artifactPathNameMin)
             });
