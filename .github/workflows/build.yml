@@ -14,31 +14,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install minification tools
-        run: |
-          npm install -g terser
-          npm install -g clean-css-cli
-      - name: Minify JS and CSS files
-        run: |
-          echo "Minifying JavaScript files..."
-          find templates/assets -type f -name "*.js" ! -name "*.min.js" | while read file; do
-            echo "Minifying $file"
-            terser "$file" -c -m -o "$file"
-          done
-          
-          echo "Minifying CSS files..."
-          find templates/assets -type f -name "*.css" ! -name "*.min.css" | while read file; do
-            echo "Minifying $file"
-            cleancss -o "$file" "$file"
-          done
-      - name: Create unminified package
+      - name: Compress zip
         run: |
           PACKAGE_VERSION=$(sed -nE 's/^\s*"version": "(.*?)",$/\1/p' package.json)
           PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
           ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
           ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
           echo "halo-theme-hao version $PACKAGE_VERSION"
-          echo "Creating unminified package: ${ARTIFACT_NAME}"
+          echo "Artifact name: ${ARTIFACT_NAME}"
+          echo "Artifact pathname: ${ARTIFACT_PATHNAME}"
           echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
           echo "ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
@@ -47,33 +31,6 @@ jobs:
           mkdir dist
           cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
           zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
-          rm -rf $PRE_ZIP_FOLDER
-      - name: Minify JS and CSS files
-        run: |
-          echo "Minifying JavaScript files..."
-          find templates/assets -type f -name "*.js" ! -name "*.min.js" | while read file; do
-            echo "Minifying $file"
-            terser "$file" -c -m -o "$file"
-          done
-          
-          echo "Minifying CSS files..."
-          find templates/assets -type f -name "*.css" ! -name "*.min.css" | while read file; do
-            echo "Minifying $file"
-            cleancss -o "$file" "$file"
-          done
-      - name: Create minified package
-        run: |
-          PACKAGE_VERSION=$(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
-          PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
-          ARTIFACT_NAME_MIN=${PRE_ZIP_FOLDER}.min.zip
-          ARTIFACT_PATHNAME_MIN=dist/${ARTIFACT_NAME_MIN}
-          echo "Creating minified package: ${ARTIFACT_NAME_MIN}"
-          echo "ARTIFACT_NAME_MIN=${ARTIFACT_NAME_MIN}" >> $GITHUB_ENV
-          echo "ARTIFACT_PATHNAME_MIN=${ARTIFACT_PATHNAME_MIN}" >> $GITHUB_ENV
-          mkdir $PRE_ZIP_FOLDER
-          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
-          zip -r $ARTIFACT_PATHNAME_MIN $PRE_ZIP_FOLDER
-          rm -rf $PRE_ZIP_FOLDER
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -81,43 +38,21 @@ jobs:
           path: |
             dist/*.zip
           retention-days: 7
-      - name: Upload unminified release asset
-        uses: actions/github-script@v7
+      - name: Upload a release asset
+        uses: actions/github-script@v8
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const fs = require('fs');
+            const fs = require('fs').promises;
             const { repo: { owner, repo }, sha } = context;
             console.log({ owner, repo, sha });
             const releaseId = process.env.RELEASE_ID
             const artifactPathName = process.env.ARTIFACT_PATHNAME
             const artifactName = process.env.ARTIFACT_NAME
-            console.log('Releasing unminified version:', releaseId, artifactPathName, artifactName)
-            
-            await github.rest.repos.uploadReleaseAsset({
-              owner,
-              repo,
+            console.log('Releasing', releaseId, artifactPathName, artifactName)
+            await github.repos.uploadReleaseAsset({
+              owner, repo,
               release_id: releaseId,
               name: artifactName,
-              data: fs.readFileSync(artifactPathName)
-            });
-      - name: Upload minified release asset
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const fs = require('fs');
-            const { repo: { owner, repo }, sha } = context;
-            console.log({ owner, repo, sha });
-            const releaseId = process.env.RELEASE_ID
-            const artifactPathNameMin = process.env.ARTIFACT_PATHNAME_MIN
-            const artifactNameMin = process.env.ARTIFACT_NAME_MIN
-            console.log('Releasing minified version:', releaseId, artifactPathNameMin, artifactNameMin)
-            
-            await github.rest.repos.uploadReleaseAsset({
-              owner,
-              repo,
-              release_id: releaseId,
-              name: artifactNameMin,
-              data: fs.readFileSync(artifactPathNameMin)
+              data: await fs.readFile(artifactPathName)
             });
