@@ -1,85 +1,119 @@
-name: Build and Release Theme
+name: Build distribution theme
 on:
   release:
-    types: [created] # 发布 Release 时触发
+    types:
+      - created
 jobs:
-  build-and-upload:
+  build-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # 上传 release asset 需要写权限
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
         with:
-          node-version: 20
-      - name: Install minify tools
+          submodules: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Install minification tools
         run: |
-          npm install -g terser clean-css-cli html-minifier-terser
-      - name: Minify JS, CSS and HTML in specific directories
+          npm install -g terser
+          npm install -g clean-css-cli
+      - name: Minify JS and CSS files
         run: |
-          # 定义需要处理的目录
-          DIRECTORIES=(
-            "templates"
-          )
-          for dir in "${DIRECTORIES[@]}"; do
-            if [ -d "$dir" ]; then
-              echo "Processing directory: $dir"
-              # 最小化所有 .js 文件
-              find "$dir" -type f -name "*.js" -exec terser {} --compress --mangle -o {} \; 2>/dev/null || echo "No JS files in $dir"
-              # 最小化所有 .css 文件
-              find "$dir" -type f -name "*.css" -exec cleancss -o {} {} \; 2>/dev/null || echo "No CSS files in $dir"
-              # 最小化所有 .html 文件
-              find "$dir" -type f -name "*.html" -exec html-minifier-terser {} \
-                --collapse-whitespace \
-                --remove-comments \
-                --remove-optional-tags \
-                --remove-redundant-attributes \
-                --remove-script-type-attributes \
-                --remove-tag-whitespace \
-                --use-short-doctype \
-                --minify-css true \
-                --minify-js true \
-                -o {} \; 2>/dev/null || echo "No HTML files in $dir"
-              echo "Minify completed for $dir"
-            else
-              echo "Directory not found (skipped): $dir"
-            fi
+          echo "Minifying JavaScript files..."
+          find templates/assets -type f -name "*.js" ! -name "*.min.js" | while read file; do
+            echo "Minifying $file"
+            terser "$file" -c -m -o "$file"
           done
-          echo "All specified directories processed."
-      - name: Get version from package.json
-        id: get_version
+          
+          echo "Minifying CSS files..."
+          find templates/assets -type f -name "*.css" ! -name "*.min.css" | while read file; do
+            echo "Minifying $file"
+            cleancss -o "$file" "$file"
+          done
+      - name: Create unminified package
         run: |
-          PACKAGE_VERSION=$(jq -r .version package.json)
-          echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
-          echo "halo-theme-hao version $PACKAGE_VERSION"
-      - name: Compress zip (original folder structure)
-        run: |
-          PACKAGE_VERSION=${{ steps.get_version.outputs.version }}
+          PACKAGE_VERSION=$(sed -nE 's/^\s*"version": "(.*?)",$/\1/p' package.json)
           PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
           ARTIFACT_NAME=${PRE_ZIP_FOLDER}.zip
-          ARTIFACT_PATH=dist/${ARTIFACT_NAME}
-         
-          echo "Artifact name: ${ARTIFACT_NAME}"
-          echo "Artifact path: ${ARTIFACT_PATH}"
-         
-          mkdir -p "$PRE_ZIP_FOLDER"
-          mkdir -p dist
-         
-          cp -r theme.yaml settings.yaml annotation-setting.yaml templates "$PRE_ZIP_FOLDER"/ 2>/dev/null || echo "Some root files missing"
-
-          zip -r "$ARTIFACT_PATH" "$PRE_ZIP_FOLDER"
-         
-          echo "ZIP created: $ARTIFACT_PATH"
-      - name: Upload ZIP to Release
-        uses: shogo82148/actions-upload-release-asset@v1
+          ARTIFACT_PATHNAME=dist/${ARTIFACT_NAME}
+          echo "halo-theme-hao version $PACKAGE_VERSION"
+          echo "Creating unminified package: ${ARTIFACT_NAME}"
+          echo "PACKAGE_VERSION=${PACKAGE_VERSION}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
+          echo "ARTIFACT_PATHNAME=${ARTIFACT_PATHNAME}" >> $GITHUB_ENV
+          echo "RELEASE_ID=${{ github.event.release.id }}" >> $GITHUB_ENV
+          mkdir $PRE_ZIP_FOLDER
+          mkdir dist
+          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
+          zip -r $ARTIFACT_PATHNAME $PRE_ZIP_FOLDER
+          rm -rf $PRE_ZIP_FOLDER
+      - name: Minify JS and CSS files
+        run: |
+          echo "Minifying JavaScript files..."
+          find templates/assets -type f -name "*.js" ! -name "*.min.js" | while read file; do
+            echo "Minifying $file"
+            terser "$file" -c -m -o "$file"
+          done
+          
+          echo "Minifying CSS files..."
+          find templates/assets -type f -name "*.css" ! -name "*.min.css" | while read file; do
+            echo "Minifying $file"
+            cleancss -o "$file" "$file"
+          done
+      - name: Create minified package
+        run: |
+          PACKAGE_VERSION=$(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+          PRE_ZIP_FOLDER=halo-theme-hao-${PACKAGE_VERSION}
+          ARTIFACT_NAME_MIN=${PRE_ZIP_FOLDER}.min.zip
+          ARTIFACT_PATHNAME_MIN=dist/${ARTIFACT_NAME_MIN}
+          echo "Creating minified package: ${ARTIFACT_NAME_MIN}"
+          echo "ARTIFACT_NAME_MIN=${ARTIFACT_NAME_MIN}" >> $GITHUB_ENV
+          echo "ARTIFACT_PATHNAME_MIN=${ARTIFACT_PATHNAME_MIN}" >> $GITHUB_ENV
+          mkdir $PRE_ZIP_FOLDER
+          cp -r theme.yaml settings.yaml annotation-setting.yaml templates $PRE_ZIP_FOLDER/
+          zip -r $ARTIFACT_PATHNAME_MIN $PRE_ZIP_FOLDER
+          rm -rf $PRE_ZIP_FOLDER
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: dist/*.zip
-      - name: Upload artifact (for debug)
-        uses: actions/upload-artifact@v4
-        with:
-          name: halo-theme-hao-zip
-          path: dist/*.zip
+          name: halo-theme-hao
+          path: |
+            dist/*.zip
           retention-days: 7
+      - name: Upload unminified release asset
+        uses: actions/github-script@v2
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs').promises;
+            const { repo: { owner, repo }, sha } = context;
+            console.log({ owner, repo, sha });
+            const releaseId = process.env.RELEASE_ID
+            const artifactPathName = process.env.ARTIFACT_PATHNAME
+            const artifactName = process.env.ARTIFACT_NAME
+            console.log('Releasing unminified version:', releaseId, artifactPathName, artifactName)
+            await github.repos.uploadReleaseAsset({
+              owner, repo,
+              release_id: releaseId,
+              name: artifactName,
+              data: await fs.readFile(artifactPathName)
+            });
+      - name: Upload minified release asset
+        uses: actions/github-script@v2
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs').promises;
+            const { repo: { owner, repo }, sha } = context;
+            console.log({ owner, repo, sha });
+            const releaseId = process.env.RELEASE_ID
+            const artifactPathNameMin = process.env.ARTIFACT_PATHNAME_MIN
+            const artifactNameMin = process.env.ARTIFACT_NAME_MIN
+            console.log('Releasing minified version:', releaseId, artifactPathNameMin, artifactNameMin)
+            await github.repos.uploadReleaseAsset({
+              owner, repo,
+              release_id: releaseId,
+              name: artifactNameMin,
+              data: await fs.readFile(artifactPathNameMin)
+            });
