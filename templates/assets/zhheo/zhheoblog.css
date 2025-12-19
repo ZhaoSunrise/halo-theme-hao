@@ -3003,7 +3003,7 @@ ul {
 
 #pagination .page-number.current {
     background: rgb(0, 121, 255);
-    color: var(--heo-card-bg);
+    color: var(--heo-white);
     cursor: default;
     border-radius: 5px;
 }
@@ -12216,7 +12216,7 @@ a.reward-main-btn:hover {
     #pagination .page-number.current:hover {
         background: var(--heo-theme);
         box-shadow: var(--heo-shadow-theme);
-        color: var(--heo-white);
+        color: var(--heo-black);
     }
 
     #pagination .page-number:hover {
